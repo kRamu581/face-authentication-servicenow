@@ -49,10 +49,7 @@
         <input id="email" type="email" style="padding:8px;width:280px" />
     </div>
 
-    <div style="margin-top:12px;">
-        <label style="display:block;margin-bottom:6px">Phone</label>
-        <input id="phone" type="text" style="padding:8px;width:280px" />
-    </div>
+    <!-- phone removed per new requirement -->
 
     <div style="margin-top:12px;">
         <label style="display:block;margin-bottom:6px">Password (required)</label>
@@ -66,6 +63,20 @@
     </div>
 
     <p id="status">Loading models...</p>
+
+    <div id="loginResult" style="margin-top:20px; display:none;">
+        <div style="display:flex; gap:20px; justify-content:center; align-items:center;">
+            <div>
+                <div style="font-weight:bold;margin-bottom:6px">Registered Face</div>
+                <img id="registeredFace" src="" alt="Registered face" style="width:200px;height:200px;object-fit:cover;border:1px solid #ccc;border-radius:6px" />
+            </div>
+            <div>
+                <div style="font-weight:bold;margin-bottom:6px">Current Face</div>
+                <img id="currentFace" src="" alt="Current face" style="width:200px;height:200px;object-fit:cover;border:1px solid #ccc;border-radius:6px" />
+            </div>
+        </div>
+        <div id="welcomeMsg" style="margin-top:12px;font-size:18px;font-weight:bold"></div>
+    </div>
 
     <script>
         const video = document.getElementById('video');
@@ -118,7 +129,7 @@
             // Validate inputs
             const name = document.getElementById('name').value.trim();
             const email = document.getElementById('email').value.trim();
-            const phone = document.getElementById('phone').value.trim();
+            const phone = null;
             const password = document.getElementById('password').value;
 
             if (!name || !email || !password) {
@@ -140,13 +151,16 @@
 
             const descriptor = Array.from(result.descriptor);
 
+            // capture current webcam frame as JPEG/base64
+            const faceImage = captureFrameAsDataURL();
+
             status.innerText = 'Registering user...';
 
             try {
                 const res = await fetch('/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email, phone, password, descriptor })
+                    body: JSON.stringify({ name, email, password, descriptor, faceImage })
                 });
 
                 const data = await res.json();
@@ -194,13 +208,19 @@
                 const res = await fetch('/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password, descriptor })
+                        // include currentFaceImage for UI display; backend compares descriptors only
+                        body: JSON.stringify({ email, password, descriptor, currentFaceImage: captureFrameAsDataURL() })
                 });
 
                 const data = await res.json();
 
                 if (res.ok && data.success) {
                     status.innerText = data.message || 'Login successful';
+                    // show registered and current faces
+                    document.getElementById('registeredFace').src = data.user.faceImage || '';
+                    document.getElementById('currentFace').src = captureFrameAsDataURL();
+                    document.getElementById('welcomeMsg').innerText = `✅ Face Matched\nWelcome, ${data.user.name}`;
+                    document.getElementById('loginResult').style.display = 'block';
                 } else {
                     status.innerText = data.message || 'Login failed';
                 }
@@ -208,6 +228,21 @@
             } catch (err) {
                 console.error(err);
                 status.innerText = 'Login request failed: ' + err.message;
+            }
+        }
+
+        // Helper: capture current video frame as JPEG data URL
+        function captureFrameAsDataURL() {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                return canvas.toDataURL('image/jpeg', 0.9);
+            } catch (e) {
+                console.error('captureFrameAsDataURL error', e);
+                return null;
             }
         }
     </script>

@@ -40,7 +40,7 @@ const User = mongoose.model('User', new mongoose.Schema({
         required: true,
         unique: true
     },
-    phone: String,
+    faceImage: String,
     password: {
         type: String,
         required: true
@@ -57,41 +57,37 @@ app.post('/register', async (req, res) => {
 
     try {
 
+
         const {
             name,
             email,
-            phone,
             password,
-            descriptor
+            descriptor,
+            faceImage
         } = req.body;
 
         // Validate face descriptor
-        if (!descriptor || descriptor.length !== 128) {
-            return res.status(400).json({
-                message: 'Invalid face data'
-            });
+        if (!descriptor || !Array.isArray(descriptor) || descriptor.length !== 128) {
+            return res.status(400).json({ message: 'Invalid face data' });
+        }
+
+        // Validate face image is present (base64 string or URL)
+        if (!faceImage) {
+            return res.status(400).json({ message: 'faceImage is required' });
         }
 
         // Check existing email
         const existingUser = await User.findOne({ email });
 
         if (existingUser) {
-            return res.status(400).json({
-                message: 'Email already registered'
-            });
+            return res.status(400).json({ message: 'Email already registered' });
         }
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // Create user
-        await User.create({
-            name,
-            email,
-            phone,
-            password: hashedPassword,
-            descriptor
-        });
+        await User.create({ name, email, password: hashedPassword, descriptor, faceImage });
 
         res.json({
             message: 'User registered successfully!'
@@ -121,7 +117,7 @@ function euclideanDistance(a, b) {
 
 app.post('/login', async (req, res) => {
     try {
-        const { email, password, descriptor } = req.body;
+        const { email, password, descriptor, currentFaceImage } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({ success: false, message: 'Email and password are required' });
@@ -159,10 +155,11 @@ app.post('/login', async (req, res) => {
 
         return res.json({
             success: true,
-            message: 'Face authentication successful',
+            message: 'Login successful',
             user: {
                 name: user.name,
-                email: user.email
+                email: user.email,
+                faceImage: user.faceImage
             }
         });
 
